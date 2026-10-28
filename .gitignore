@@ -1,0 +1,18 @@
+# 构建产物
+build/
+*.o
+*.elf
+*.map
+*.d
+
+# 读回/调试临时文件
+readback.bin
+*.log
+__pycache__/
+*.pyc
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+.DS_Store
