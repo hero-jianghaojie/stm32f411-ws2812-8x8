@@ -11,6 +11,16 @@ readback.bin
 __pycache__/
 *.pyc
 
+# 素材(体积大, 且为第三方图像/视频, 不进仓库)
+assets/
+
+# 中间预览图: 只保留三张用于 README 的成品
+out/*.png
+out/*.gif
+!out/face_preview.png
+!out/video_frames.png
+!out/whale_anim.gif
+
 # 编辑器
 .vscode/
 .idea/

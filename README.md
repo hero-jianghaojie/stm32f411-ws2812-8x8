@@ -1,12 +1,13 @@
-# STM32F411 + WS2812B 8×8 点阵驱动
+# STM32F411 外设实验：WS2812B 点阵 + OLED + 串口烧写工具
 
-用 STM32F411（WeAct Black Pill，F411CEU6）驱动 64 颗 WS2812B 组成的 8×8 点阵：
-纯寄存器编程、不依赖 HAL/CMSIS 库，5 种灯效由一个按键（PA0）逐次切换。
-仓库里另附一个**自己实现的串口 ISP 烧写工具**（AN3155 协议，Python），
-用四线 USB-TTL 即可完成擦除、写入、跳转，不需要 ST-Link。
+用 STM32F411（WeAct Black Pill，F411CEU6）做的三件事，全部纯寄存器、不依赖 HAL/CMSIS：
 
-A register-level WS2812B (8×8, 64 LEDs) driver for STM32F411, with 5 modes switched by
-the on-board KEY (PA0), plus a self-contained UART ISP flasher (AN3155) for USB-TTL only.
+1. **WS2812B 8×8 点阵**（64 颗）：5 种灯效，板载 KEY（PA0）逐次切换；
+2. **OLED 显示**（SSD1306 / SH1106，128×64，软件 I2C）：测试图案、像素画动画、视频帧循环；
+3. **串口 ISP 烧写工具**（AN3155 协议，Python）：四线 USB-TTL 完成擦除、写入、跳转，不需要 ST-Link。
+
+A register-level playground for STM32F411: WS2812B 8×8 matrix with 5 modes, a 128×64
+mono OLED packed with image/animation tools, and a self-contained AN3155 UART flasher.
 
 ---
 
@@ -100,6 +101,10 @@ src/            固件源码
   ws2812_bright.c   全亮度演示
   btn_scan.c        按键引脚扫描工具
   f411_uart_test.c  16 MHz 最小串口测试
+  oled_test.c       OLED 测试图案
+  oled_whale.c      播放像素画/立绘帧
+  oled_video.c      播放视频帧
+  i2c_scan.c        I2C 扫描 + 双方向诊断
   startup.c         C 语言向量表与复位
 f411.ld         链接脚本（512K Flash / 128K RAM）
 tools/          串口 ISP 工具与验证脚本
@@ -112,14 +117,63 @@ out/            预编译 hex
 flash.bat / watch.bat   Windows 一键烧写 / 查看
 ```
 
-## 七、踩过的坑（供参考）
+## 七、OLED 显示（SSD1306 / SH1106，128×64）
+
+### 接线（实测）
+
+| OLED | Black Pill | 说明 |
+|---|---|---|
+| VCC | 3.3 V | 有的模块要 5 V，按丝印 |
+| GND | GND | |
+| SCL | **PB7** | 软件 I2C，开漏 + 内部上拉 |
+| SDA | **PB6** | 同上 |
+
+> ⚠️ 本机实测发现 SCL/SDA 与"常规习惯"（PB6=SCL）相反。若你的接法与这里不同，
+> 改 `oled_*.c` 里的 `SCL_PIN` / `SDA_PIN` 即可；`i2c_scan.c` 的双方向扫描（PASS1/PASS2）
+> 能一次判出是否接反。
+
+### 固件
+
+| 文件 | 内容 |
+|---|---|
+| `src/oled_test.c` | 地址探测（0x3C/0x3D）+ 边框/棋盘/斜线 + 竖条移动 |
+| `src/oled_whale.c` | 播放 `anim_whale.h` 里的帧序列（像素画或立绘转换结果） |
+| `src/oled_video.c` | 播放 `anim_video.h`（视频转帧，10 fps 循环） |
+| `src/i2c_scan.c` | 总线扫描 + 空闲电平诊断；双方向各扫一遍 |
+
+### 图像/视频转换工具
+
+| 脚本 | 用途 |
+|---|---|
+| `tools/gen_whale2.py` | 手绘像素风角色（棋盘格头发）→ 4 帧 |
+| `tools/gen_face.py` | 立绘 → 去白底 → 三档量化（白/50%棋盘/黑）→ 帧 |
+| `tools/gen_video.py` | 视频帧 → 提对比度 + 中值 + 阈值 → 128×64 帧 |
+| `tools/gen_video_port.py` | 竖屏版：64×128 竖直排版后旋转 -90°，人物铺满 |
+
+视频处理用 `ffmpeg` 抽帧，例如：
+
+```bash
+ffmpeg -ss 2 -t 6 -i wallpaper.mp4 -vf "fps=10,crop=120:240:320:175,scale=64:128" assets/frames/f_%03d.png
+python tools/gen_video_port.py     # 生成 src/anim_video.h
+```
+
+### 已知限制
+
+- OLED 只有 1 bit，**不适合照片/暗调视频**：主体在画面里太小时，任何抖动或阈值都只能得到剪影；
+- 想看清细节需换彩色屏（ST7735 160×80 / ILI9341 320×240，SPI）；
+- 竖构图要"铺满"，必须把屏**物理竖放**，内容按 64×128 排版后再旋转。
+
+## 八、踩过的坑（供参考）
 
 1. **`FLASH_ACR` 漏设等待周期**：0 WS 跑 100 MHz 会导致取指随机出错，表现为"灯随机亮几颗、串口无输出"。必须 3 WS。
 2. **AN3155 的尾随 ACK**：GET_ID / Read Memory 的应答结尾还有一个 `0x79`，不读掉会让后续命令整体错位一位。
 3. **三/四线 USB-TTL 没有 DTR/RTS**：FlyMcu 的自动复位对它无效，必须手动 BOOT0+NRST。
 4. **WS2812 是锁存型**：没有新数据时保持上一帧，所以"灯亮着"不能证明程序在跑；固件里加了每秒 `RUN` 心跳。
 5. **3.3 V 驱动 5 V 灯板属欠驱动**（VIH≈0.7×VDD=3.5 V）：偏暗、颜色偏时，可把灯板降到 4.5 V 或加 74HCT245。
+6. **I2C 的 SCL/SDA 接反**：现象是"IDLE 电平正常、扫描却一个器件都没有"；用双方向扫描（PASS1/PASS2）一次判出。
+7. **OLED 初始化命令被静默截断**：一次 I2C 事务只发 15 个命令字节时，序列末尾的 `0xAF`（开显示）会丢失 → "命令有 ACK 但屏全黑"。必须分批发送。
+8. **1-bit 屏不适合视频/照片**：信息量不足时任何抖动都只是噪声，应换彩屏或改画风。
 
-## 八、许可
+## 九、许可
 
 MIT License，见 `LICENSE`。

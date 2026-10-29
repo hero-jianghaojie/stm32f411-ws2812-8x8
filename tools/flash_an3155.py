@@ -84,19 +84,24 @@ class Boot:
         return body[0] / 10.0 if body else None
 
     def erase(self):
-        """先试扩展擦除 0x44 (F4 用这个)，失败再试标准擦除 0x43。"""
-        # 扩展擦除: 0xFFFF = 全片擦除
-        self.s.write(bytes([0x44, 0xBB]))
-        if self.ack() == ACK:
-            self.s.write(bytes([0xFF, 0xFF, 0x00]))
-            if self.ack(30) == ACK:
-                return "extended-mass"
-        # 标准擦除: 0xFF 0x00 = 全片
-        self.s.write(bytes([0x43, 0xBC]))
-        if self.ack() == ACK:
-            self.s.write(bytes([0xFF, 0x00]))
-            if self.ack(30) == ACK:
-                return "standard-mass"
+        """全片擦除: 先试扩展擦除 0x44, 再试标准擦除 0x43; 每种试两轮, 轮间重新同步。"""
+        for attempt in range(1, 3):
+            time.sleep(0.2)
+            self.sync()
+            self.s.reset_input_buffer()
+            self.s.write(bytes([0x44, 0xBB]))
+            if self.ack() == ACK:
+                self.s.write(bytes([0xFF, 0xFF, 0x00]))
+                if self.ack(30) == ACK:
+                    return "extended-mass"
+            time.sleep(0.2)
+            self.sync()
+            self.s.reset_input_buffer()
+            self.s.write(bytes([0x43, 0xBC]))
+            if self.ack() == ACK:
+                self.s.write(bytes([0xFF, 0x00]))
+                if self.ack(30) == ACK:
+                    return "standard-mass"
         return None
 
     def write(self, addr, data):

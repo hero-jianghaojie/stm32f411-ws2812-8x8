@@ -17,7 +17,8 @@ echo  STEP 3  wait for the log below
 echo ================================================
 echo.
 
-"%PY%" -u tools/flash_an3155.py --port COM6 --no-verify --go --hex out/ws2812_modes.hex --wait 40
+rem 当前: 视频循环(60帧/10fps) ; 换脸图: out\oled_whale.hex  换测试图: out\oled_test.hex
+"%PY%" -u tools/flash_an3155.py --port COM6 --no-verify --go --hex out/oled_video.hex --wait 40
 
 echo.
 echo ================================================
