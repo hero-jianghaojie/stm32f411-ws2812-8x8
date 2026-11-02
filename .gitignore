@@ -6,6 +6,7 @@ build/
 *.d
 
 # 读回/调试临时文件
+.last_choice
 readback.bin
 *.log
 __pycache__/

@@ -206,7 +206,21 @@ def main():
         print("做法: 把 USB-TTL 的 TX 和 RX 短接在一起（不要接板子）再跑这一项。")
         return 0 if ok else 6
 
-    b = Boot(args.port, args.baud)
+    try:
+        b = Boot(args.port, args.baud)
+    except Exception as e:
+        print("打不开串口 %s: %s" % (args.port, e))
+        try:
+            from serial.tools import list_ports
+            ps = list(list_ports.comports())
+            if ps:
+                print("当前可用串口:")
+                for p in ps:
+                    print("  %-6s %s" % (p.device, p.description))
+                print("用 --port 指定，例如: --port %s" % ps[0].device)
+        except Exception:
+            pass
+        return 7
     try:
         v = None
         if args.wait > 0:
