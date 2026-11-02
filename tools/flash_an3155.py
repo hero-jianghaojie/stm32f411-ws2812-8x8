@@ -188,6 +188,10 @@ def main():
     ap.add_argument("--erase-only", action="store_true")
     ap.add_argument("--no-verify", action="store_true")
     ap.add_argument("--chunk", type=int, default=64, help="每次写入字节数, 默认 64")
+    ap.add_argument("--pin-sel", type=int, metavar="N",
+                    help="写入 WS2812 引脚选择 N (0=BROADCAST, 1..25 见 ws2812_sel.c)")
+    ap.add_argument("--write32", metavar="ADDR=VALUE",
+                    help="只写一个 32 位字, 例如 0x08060000=0x57530500 (不擦除)")
     ap.add_argument("--retry", type=int, default=3, help="每块重试次数")
     ap.add_argument("--loopback", action="store_true")
     ap.add_argument("--wait", type=float, default=0.0,
@@ -205,6 +209,57 @@ def main():
         print("回环测试:", "PASS（USB-TTL 收发正常）" if ok else "FAIL（收到 %r）" % got)
         print("做法: 把 USB-TTL 的 TX 和 RX 短接在一起（不要接板子）再跑这一项。")
         return 0 if ok else 6
+
+    if args.pin_sel is not None:
+        if not (0 <= args.pin_sel <= 25):
+            print("引脚序号范围 0..25")
+            return 2
+        args.write32 = "0x08060000=0x%08X" % (0x57530500 + args.pin_sel)
+        print("引脚选择 %d -> 配置字 0x%08X" % (args.pin_sel, 0x57530500 + args.pin_sel))
+
+    if args.write32:
+        try:
+            a_str, v_str = args.write32.split("=")
+            addr = int(a_str, 0)
+            value = int(v_str, 0)
+        except ValueError:
+            print("--write32 格式应为 ADDR=VALUE，例如 0x08060000=0x57530500")
+            return 2
+        try:
+            b = Boot(args.port, args.baud)
+        except Exception as e:
+            print("打不开串口 %s: %s" % (args.port, e))
+            return 7
+        try:
+            print("监听 %.0f 秒：按住 BOOT0，点 NRST，松 NRST，再松 BOOT0 ..." % args.wait) if args.wait > 0 else None
+            ok = False
+            if args.wait > 0:
+                t0 = time.time()
+                while time.time() - t0 < args.wait:
+                    if b.sync() == ACK:
+                        ok = True
+                        break
+            else:
+                ok = (b.sync() == ACK)
+            if not ok:
+                print("同步失败: 没收到 0x79")
+                return 2
+            print("写入 0x%08X = 0x%08X" % (addr, value))
+            data = value.to_bytes(4, "little")
+            err = b.write(addr, data)
+            if err:
+                print("写入失败:", err)
+                return 4
+            got = b.read(addr, 4)
+            if got == data:
+                print("校验通过（回读一致）")
+            else:
+                print("回读不符: %s" % ("None" if got is None else got.hex(" ")))
+                return 5
+            print("完成。BOOT0 接回 GND，按复位即可。")
+            return 0
+        finally:
+            b.close()
 
     try:
         b = Boot(args.port, args.baud)

@@ -31,6 +31,7 @@ build_one() {
 
 # 五模式固件（全引脚广播，PA0 按键）——默认烧这个
 build_one ws2812_modes.c   ws2812_modes
+build_one ws2812_sel.c     ws2812_sel
 
 # 单脚版本（DIN 接 PA7 / PA6 / PA1 / PA0）
 build_one ws2812_f411.c    ws2812_PA7 -DWS_PIN=7
@@ -40,6 +41,7 @@ build_one ws2812_f411.c    ws2812_PA0 -DWS_PIN=0
 
 # 工具类固件
 build_one btn_scan.c       btn_scan
+build_one ws_pin_scan.c    ws_pin_scan
 build_one ws2812_allpins.c ws2812_allpins
 build_one ws2812_bright.c  ws2812_bright
 
