@@ -188,6 +188,8 @@ def main():
     ap.add_argument("--erase-only", action="store_true")
     ap.add_argument("--no-verify", action="store_true")
     ap.add_argument("--chunk", type=int, default=64, help="每次写入字节数, 默认 64")
+    ap.add_argument("--pin-after", type=int, metavar="N",
+                    help="烧完 hex 后接着写 WS2812 引脚配置 (0..25), 免二次进 bootloader")
     ap.add_argument("--pin-sel", type=int, metavar="N",
                     help="写入 WS2812 引脚选择 N (0=BROADCAST, 1..25 见 ws2812_sel.c)")
     ap.add_argument("--write32", metavar="ADDR=VALUE",
@@ -358,6 +360,23 @@ def main():
                 print("校验失败 %d 块" % bad)
                 return 5
             print("校验通过: %d 块全部一致" % len(blks))
+
+        if args.pin_after is not None:
+            if not (0 <= args.pin_after <= 25):
+                print("引脚序号范围 0..25")
+                return 2
+            word = 0x57530500 + args.pin_after
+            print("附加: 写引脚配置 0x%08X = 0x%08X" % (0x08060000, word))
+            data = word.to_bytes(4, "little")
+            err = b.write(0x08060000, data)
+            if err:
+                print("引脚配置写入失败:", err)
+            else:
+                got = b.read(0x08060000, 4)
+                if got == data:
+                    print("引脚配置校验通过 (pin=%d)" % args.pin_after)
+                else:
+                    print("引脚配置回读不符: %s" % ("None" if got is None else got.hex(" ")))
 
         if args.go:
             print("跳转到 0x08000000:", "OK" if b.go(0x08000000) else "FAIL")

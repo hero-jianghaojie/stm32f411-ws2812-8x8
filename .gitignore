@@ -7,6 +7,7 @@ build/
 
 # 读回/调试临时文件
 .last_choice
+.last_pin
 readback.bin
 *.log
 __pycache__/
