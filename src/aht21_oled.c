@@ -340,10 +340,14 @@ static uint32_t aht_measure(aht_val_t *out)
     raw_h = ((uint32_t)b[1] << 12) | ((uint32_t)b[2] << 4) | ((uint32_t)b[3] >> 4);
     raw_t = (((uint32_t)b[3] & 0x0Fu) << 16) | ((uint32_t)b[4] << 8) | (uint32_t)b[5];
 
-    out->h_x100 = (raw_h * 10000u) >> 20;
+    /* 注意：raw_h 最大 2^20，raw_h*10000 会超过 32 位（约 1.05e10），
+       所以先右移 4 位再乘，等价于 (raw*10000)>>20，误差 < 0.01%RH */
+    out->h_x100 = (((uint32_t)raw_h >> 4) * 10000u) >> 16;
     {
-        int32_t t = (int32_t)((raw_t * 20000u) >> 20) - 5000;
+{
+        int32_t t = (int32_t)((((uint32_t)raw_t >> 4) * 20000u) >> 16) - 5000;
         out->t_x100 = (t < 0) ? 0u : (uint32_t)t;
+    }
     }
     return 0u;
 }
