@@ -9,6 +9,11 @@ set PYTHONIOENCODING=utf-8
 if not defined PORT set PORT=COM6
 if not defined BAUD set BAUD=115200
 
+rem ============================================================
+rem  main loop: pick an image, flash it, then ask again
+rem ============================================================
+:main_loop
+
 set N=0
 for %%f in (out\*.hex) do (
   set /a N+=1
@@ -24,6 +29,7 @@ for %%f in (out\*.hex) do (
   )
 )
 
+echo.
 echo ==================================================
 echo   Images in out\
 echo ==================================================
@@ -43,19 +49,21 @@ if exist .last_choice (
   set /p LAST=<.last_choice
   echo   Last choice: !LAST!
 )
-echo   Number + Enter to flash; plain Enter repeats last
+echo   Number + Enter = flash that image
+echo   Plain Enter   = flash the last image again
+echo   Q + Enter     = quit
 echo ==================================================
 set "SEL="
 set /p "SEL=Choice: "
+if /i "!SEL!"=="q" goto :done
 if not defined SEL set SEL=!LAST!
 if not defined SEL set SEL=1
 set "IMG="
 set "NAME="
 call :pick %SEL%
 if not defined IMG (
-  echo   [ERROR] no item %SEL%
-  pause
-  exit /b 1
+  echo   [ERROR] no item !SEL! - back to the list
+  goto :main_loop
 )
 (echo !SEL!)>.last_choice
 
@@ -79,8 +87,16 @@ echo.
 echo.
 echo ==================================================
 echo   After "GO ok": BOOT0 to GND, tap NRST
+echo   --------------------------------------------------
+echo   Enter = back to the image list (flash another)
+echo   Q     = quit
 echo ==================================================
-pause
+set "AGAIN="
+set /p "AGAIN=> "
+if /i "!AGAIN!"=="q" goto :done
+goto :main_loop
+
+:done
 popd
 goto :eof
 
@@ -105,7 +121,7 @@ if exist .last_pin (
   set /p LASTPIN=<.last_pin
   echo   Last pin: !LASTPIN!
 )
-echo   This value is stored in Flash (0x08060000) and read by ws2812_sel.
+echo   Stored in Flash 0x08060000, read by ws2812_sel.
 set "SELP="
 set /p "SELP=Pin [0-25, Enter = last/0]: "
 if not defined SELP set "SELP=!LASTPIN!"
