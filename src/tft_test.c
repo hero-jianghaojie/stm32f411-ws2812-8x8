@@ -5,16 +5,18 @@
  *   2 = ST7789   (240x240，常见 1.14/1.3 寸)
  *   3 = ILI9341  (240x320，常见 2.4/2.8 寸)
  *
- * 接线（可改下面的 PIN_* 宏）：
- *   TFT 引脚      Black Pill
- *   VCC           3.3V
- *   GND           GND
- *   SCL / SCK     PB13
- *   SDA / MOSI    PB15
- *   CS            PB12
- *   DC / RS       PB14
- *   RES / RST     PB10
- *   BL / LED      3.3V（或经 100R 接 3.3V）
+ * 接线（屏上丝印 -> Black Pill），可在下面改 PIN_* 宏：
+ *   VCC          3.3V
+ *   GND          GND
+ *   SC  (时钟)   PB13   <- 固件里的 PIN_SCK
+ *   DI  (数据)   PB15   <- 固件里的 PIN_MOSI
+ *   RS  (即 DC)  PB14   <- 固件里的 PIN_DC
+ *   CS           PB12
+ *   RST          PB10
+ *   BLK (背光)   3.3V，建议串 100R
+ *
+ * 说明：8 针 BLK/RS/RST/CS/SC/DI/GND/VCC 这种丝印多是 ST7735 的 1.8 寸模块，
+ *       但同丝印也有 ST7789 版本，所以三种固件都编了，逐个试即可。
  *
  * 串口 USART1 PA9/PA10 115200：打印控制器名、分辨率与 RUN 心跳。
  *
@@ -29,13 +31,20 @@
 #ifndef TFT_CTRL
 #define TFT_CTRL 1
 #endif
+#ifndef TFT_INVERT
+#define TFT_INVERT 0        /* 画面颜色反相时改成 1 */
+#endif
 
 #if TFT_CTRL == 1
 #define CTRL_NAME   "ST7735"
 #define TFT_W       128
 #define TFT_H       160
+#ifndef TFT_XOFF
 #define TFT_XOFF    0
+#endif
+#ifndef TFT_YOFF
 #define TFT_YOFF    0
+#endif
 #elif TFT_CTRL == 2
 #define CTRL_NAME   "ST7789"
 #define TFT_W       240
@@ -227,7 +236,11 @@ static void tft_init(void)
         tft_cmd_data(0xC3, pw4, 2u);
         tft_cmd_data(0xC4, pw5, 2u);
         tft_cmd(0xC5); tft_data(0x0E);
+#if TFT_INVERT
+        tft_cmd(0x21);                      /* INVON  (画面反相时) */
+#else
         tft_cmd(0x20);                      /* INVOFF */
+#endif
         tft_cmd(0x36); tft_data(0xC8);      /* MADCTL */
         tft_cmd(0x3A); tft_data(0x05);      /* 16bit */
         tft_cmd_data(0xE0, pgam, 16u);
@@ -259,7 +272,11 @@ static void tft_init(void)
         tft_cmd_data(0xD0, pwctrl1, 2u);
         tft_cmd_data(0xE0, pgam, 14u);
         tft_cmd_data(0xE1, ngam, 14u);
-        tft_cmd(0x21);                      /* INVON */
+#if TFT_INVERT
+        tft_cmd(0x20);                      /* INVOFF */
+#else
+        tft_cmd(0x21);                      /* INVON  (ST7789 常见) */
+#endif
         tft_cmd(0x13); delay_ms(10u);
         tft_cmd(0x29); delay_ms(100u);
     }
@@ -292,7 +309,11 @@ static void tft_init(void)
         tft_cmd_data(0xC7, gvdd, 1u);
         tft_cmd(0x36); tft_data(0x48);      /* MADCTL: MX+BGR */
         tft_cmd(0x3A); tft_data(0x55);      /* 16bit */
+#if TFT_INVERT
+        tft_cmd(0x20);
+#else
         tft_cmd(0x21);
+#endif
         tft_cmd_data(0xE0, pgam, 15u);
         tft_cmd_data(0xE1, ngam, 15u);
         tft_cmd(0x11); delay_ms(120u);

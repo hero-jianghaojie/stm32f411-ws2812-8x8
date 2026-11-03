@@ -36,6 +36,9 @@ build_one ws2812_sel.c     ws2812_sel
 build_one tft_test.c       tft_st7735  -DTFT_CTRL=1
 build_one tft_test.c       tft_st7789  -DTFT_CTRL=2
 build_one tft_test.c       tft_ili9341 -DTFT_CTRL=3
+# ST7735 面板偏移/颜色反相的备用版（1.8 寸蓝板常见 offset 2/1）
+build_one tft_test.c       tft_st7735o -DTFT_CTRL=1 -DTFT_XOFF=2 -DTFT_YOFF=1
+build_one tft_test.c       tft_st7735i -DTFT_CTRL=1 -DTFT_XOFF=2 -DTFT_YOFF=1 -DTFT_INVERT=1
 
 # 单脚版本（DIN 接 PA7 / PA6 / PA1 / PA0）
 

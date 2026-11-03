@@ -210,16 +210,21 @@ python tools/flash_an3155.py --port COM6 --pin-sel 7
 
 ### 接线（默认，可改 `src/tft_test.c` 顶部宏）
 
-| TFT | Black Pill | 说明 |
+8 针模块的丝印通常是 `BLK / RS / RST / CS / SC / DI / GND / VCC`，对应关系：
+
+| 屏上丝印 | 含义 | Black Pill |
 |---|---|---|
-| VCC | 3.3 V | |
-| GND | GND | |
-| SCL / SCK | **PB13** | 软件 SPI（不占硬件 SPI 引脚） |
-| SDA / MOSI | **PB15** | |
-| CS | **PB12** | |
-| DC / RS | **PB14** | 数据/命令选择 |
-| RES / RST | **PB10** | 复位 |
-| BL / LED | 3.3 V | 背光，可串 100 Ω |
+| VCC | 3.3 V | 3.3 V |
+| GND | 地 | GND |
+| **SC** | SPI 时钟（SCL/SCK） | **PB13** |
+| **DI** | 数据输入（MOSI/SDA） | **PB15** |
+| **RS** | 寄存器选择（= DC） | **PB14** |
+| **CS** | 片选 | **PB12** |
+| **RST** | 复位 | **PB10** |
+| **BLK** | 背光 | 3.3 V（建议串 100 Ω） |
+
+> 若丝印是 `SCL/SDA/CS/DC/RES/BLK` 或 `CLK/DIN/...`，含义相同，按“时钟→PB13、数据→PB15、
+> 选择→PB14、片选→PB12、复位→PB10”一一对应即可。
 
 > 这组引脚避开了 PA0（按键）、PA9/PA10（串口）、PB6/PB7（OLED I2C），
 > 三块屏可以同时接着，只烧不同固件即可。
@@ -233,6 +238,11 @@ python tools/flash_an3155.py --port COM6 --pin-sel 7
 | 1 | ST7735 | 128×160 | `out/tft_st7735.hex` |
 | 2 | ST7789 | 240×240 | `out/tft_st7789.hex` |
 | 3 | ILI9341 | 240×320 | `out/tft_ili9341.hex` |
+| 1 + 偏移 | ST7735 + XOFF2/YOFF1 | 128×160 | `out/tft_st7735o.hex` |
+| 1 + 偏移 + 反相 | 同上再加 INVON | 128×160 | `out/tft_st7735i.hex` |
+
+后两版是给“1.8 寸蓝板”准备的：这类模块常见画面偏移 2/1 像素、颜色反相，
+先用 `tft_st7735.hex`，画面偏或反相就换 `o` / `i` 版。
 
 **不知道屏幕是哪种芯片时，三个都烧一遍**，哪个能正确显示就用哪个（烧错不会损坏屏幕）。
 
