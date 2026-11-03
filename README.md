@@ -20,8 +20,12 @@ mono OLED packed with image/animation tools, and a self-contained AN3155 UART fl
 | 2 | 彩色流水（彗星：头部颜色沿色轮变化，4 级拖尾） |
 | 3 | 单色轮换（红/绿/蓝/黄/青/紫，每约 1 s 切换） |
 | 4 | 关闭（全灭，省电） |
+| 5 | **引脚选择**：短按逐个试脚（全白闪一下），长按 2 s 存入 Flash 并回到模式 0 |
 
 按键：板载 **KEY = PA0**（内部上拉，按下为 0），每按一次切下一模式，串口同步打印 `MODE n`。
+
+> 注意：整个 WS2812 功能只有一个固件 `ws2812_sel`（模式 + 选脚合并），
+> 早期的 `ws2812_PA7` / `ws2812_modes` / `ws2812_bright` / `ws2812_allpins` 已删除。
 
 ## 二、硬件与接线
 
@@ -177,7 +181,7 @@ python tools/gen_video_port.py     # 生成 src/anim_video.h
 
 ## 十、WS2812 数据脚的运行时选择
 
-板子上的 WS2812 数据脚不确定、或想换脚时，不必重烧固件：
+数据脚存在 Flash 里，换脚不必重烧固件（固件仍是 `ws2812_sel`）：
 
 1. 烧一次 `out/ws2812_sel.hex`（此后长期保留）；
 2. 双击 **`set_pin.bat`**，输入引脚序号（0=BROADCAST，1=PA1 … 25=PB15）；

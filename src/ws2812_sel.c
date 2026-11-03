@@ -1,14 +1,17 @@
-/* WS2812 数据脚可选版（运行时切换 + 掉电记忆）
+/* STM32F411 + WS2812B 8x8：五模式灯效 + 数据脚运行时选择（合并版）
  *
- * 用法：
- *   短按 KEY(PA0)  -> 切到下一个候选脚，并立刻发一帧全白让你看清是哪个
- *   长按 KEY(2 s)  -> 把当前选择写入 Flash (sector 7 @0x08060000)，掉电不丢
- *   开机           -> 从 Flash 读回上次选择；若从未保存过，默认"全部广播"
+ * 按键 KEY = PA0（内部上拉，按下为 0）
+ *   短按        : 切换画面 0->1->2->3->4->5->0
+ *                 0 彩虹  1 呼吸白  2 彩色流水  3 单色轮换  4 关闭  5 引脚选择
+ *   在"引脚选择"画面(5)里：
+ *       短按    : 换到下一个候选引脚，并全白闪一下让你看清接的是哪根
+ *       长按 2s : 把当前引脚写入 Flash 并回到画面 0
  *
- * 串口(PA9/PA10, 115200) 会打印当前状态：
- *   SEL BROADCAST / SEL PA5  / SEL PB12 ...
- * 候选：PA1..PA8, PA15, PB0..PB15, 以及第 0 项"BROADCAST"（全部脚）
- * 排除：PA0(按键) PA9/PA10(串口) PA13/PA14(SWD)
+ * 数据脚候选：0=BROADCAST(全部脚) 1..8=PA1..PA8 9=PA15 10..25=PB0..PB15
+ * 保存位置：Flash 0x08060000（sector 7），配置字 0x57530500 + N
+ *          可用 set_pin.bat 或 flash_an3155.py --pin-sel N 直接改，开机自动读回
+ *
+ * 串口 USART1 PA9/PA10 115200：打印 MODE / PIN / RUN 状态
  */
 #include <stdint.h>
 
@@ -47,10 +50,12 @@
 
 #define LED_COUNT       64u
 #define SYS_HZ          100000000u
-#define FB_ADDR         0x08060000u          /* sector 7 起始 */
-#define FB_MAGIC        0x57533238u          /* "WS28" */
+#define FB_ADDR         0x08060000u
+#define FB_MAGIC        0x57530000u
 
-/* 候选表: port(0=A,1=B), pin; 第 0 项为广播 */
+#define SCR_PIN         5u
+#define SCR_NUM         6u
+
 typedef struct { uint8_t port; uint8_t pin; } pin_t;
 static const pin_t g_cand[] = {
     {0u, 0xFFu},                                   /* 0: BROADCAST */
@@ -64,6 +69,7 @@ static const pin_t g_cand[] = {
 #define CAND_N ((uint32_t)(sizeof(g_cand) / sizeof(g_cand[0])))
 
 static uint8_t  g_grb[LED_COUNT * 3u];
+static uint8_t  g_scr = 0u;
 static uint32_t g_sel = 0u;
 static uint32_t g_mask_a = 0u, g_mask_b = 0u;
 
@@ -119,16 +125,13 @@ static void dwt_init(void)
     DWT_CTRL |= 1u;
 }
 
-/* ---------------- Flash 保存 ---------------- */
-static void flash_wait(void)
-{
-    while (FLASH_SR & (1u << 16)) { }          /* BSY */
-}
+/* ---------------- Flash 配置 ---------------- */
+static void flash_wait(void) { while (FLASH_SR & (1u << 16)) { } }
 
 static uint32_t flash_read_sel(void)
 {
     uint32_t v = *(volatile uint32_t *)FB_ADDR;
-    if ((v & 0xFFFF0000u) != (FB_MAGIC & 0xFFFF0000u)) { return 0u; }
+    if ((v & 0xFFFFFF00u) != FB_MAGIC) { return 0u; }
     v &= 0xFFu;
     return (v < CAND_N) ? v : 0u;
 }
@@ -141,30 +144,29 @@ static int flash_save_sel(uint32_t sel)
     FLASH_KEYR = 0xCDEF89ABu;
 
     flash_wait();
-    FLASH_CR = (1u << 1) | (7u << 3) | (2u << 8);   /* SER, SNB=7, PSIZE=x32 */
+    FLASH_CR = (1u << 1) | (7u << 3) | (2u << 8);
     flash_wait();
-    FLASH_CR |= (1u << 16);                          /* STRT */
+    FLASH_CR |= (1u << 16);
     flash_wait();
-    if (!(FLASH_SR & 1u)) { FLASH_CR |= (1u << 31); return 0; }
-    FLASH_SR = 1u;                                   /* 清 EOP */
+    if (!(FLASH_SR & 1u)) { FLASH_CR |= (1u << 31); FLASH_SR = 1u; return 0; }
+    FLASH_SR = 1u;
 
-    word = (FB_MAGIC & 0xFFFF0000u) | (sel & 0xFFu);   /* 0x575300SS */
-    FLASH_CR = (1u << 0) | (2u << 8);                /* PG, PSIZE=x32 */
+    word = FB_MAGIC | (sel & 0xFFu);
+    FLASH_CR = (1u << 0) | (2u << 8);
     flash_wait();
     *(volatile uint32_t *)FB_ADDR = word;
     flash_wait();
-    FLASH_CR |= (1u << 31);                          /* LOCK */
+    FLASH_CR |= (1u << 31);
     return 1;
 }
 
-/* ---------------- 引脚配置 ---------------- */
+/* ---------------- 引脚 ---------------- */
 static void apply_sel(void)
 {
     uint32_t i;
     uint8_t port = g_cand[g_sel].port;
     uint8_t pin = g_cand[g_sel].pin;
 
-    /* 先全部复位为输入、关上拉，避免残留驱动 */
     for (i = 0u; i < 16u; i++) {
         if (i == 9u || i == 10u) { continue; }
         GPIOA_MODER &= ~(3u << (i * 2u));
@@ -175,7 +177,7 @@ static void apply_sel(void)
     g_mask_a = 0u;
     g_mask_b = 0u;
 
-    if (pin == 0xFFu) {                              /* 广播 */
+    if (pin == 0xFFu) {
         for (i = 1u; i <= 8u; i++) {
             GPIOA_MODER = (GPIOA_MODER & ~(3u << (i * 2u))) | (1u << (i * 2u));
             GPIOA_OSPEEDR |= (3u << (i * 2u));
@@ -197,7 +199,6 @@ static void apply_sel(void)
         g_mask_b = (1u << pin);
     }
 
-    /* 按键脚保持输入+上拉 */
     GPIOA_MODER &= ~(3u << 0);
     GPIOA_PUPDR = (GPIOA_PUPDR & ~(3u << 0)) | (1u << 0);
 }
@@ -250,6 +251,14 @@ static void fill(uint8_t r, uint8_t g, uint8_t b)
     }
 }
 
+static void set_px(uint32_t i, uint8_t r, uint8_t g, uint8_t b)
+{
+    if (i >= LED_COUNT) { return; }
+    g_grb[i * 3u + 0u] = g;
+    g_grb[i * 3u + 1u] = r;
+    g_grb[i * 3u + 2u] = b;
+}
+
 static void wheel(uint8_t p, uint8_t *r, uint8_t *g, uint8_t *b)
 {
     if (p < 85u)       { *r = (uint8_t)(255u - p * 3u); *g = (uint8_t)(p * 3u);             *b = 0; }
@@ -257,9 +266,62 @@ static void wheel(uint8_t p, uint8_t *r, uint8_t *g, uint8_t *b)
     else               { p = (uint8_t)(p - 170u);       *r = (uint8_t)(p * 3u);             *g = 0;                        *b = (uint8_t)(255u - p * 3u); }
 }
 
-static void show_sel(void)
+/* ---------------- 画面渲染 ---------------- */
+static void render(uint32_t tick)
 {
-    uart_puts("SEL ");
+    uint32_t i;
+
+    switch (g_scr) {
+    case 0u: {
+        for (i = 0u; i < LED_COUNT; i++) {
+            uint8_t r, g, b;
+            wheel((uint8_t)((i * 4u + tick * 4u) & 0xFFu), &r, &g, &b);
+            set_px(i, (uint8_t)(r >> 1), (uint8_t)(g >> 1), (uint8_t)(b >> 1));
+        }
+        break;
+    }
+    case 1u: {
+        uint32_t ph = tick % 80u;
+        uint32_t lv = (ph < 40u) ? ph * 2u : (80u - ph) * 2u;
+        fill((uint8_t)lv, (uint8_t)lv, (uint8_t)lv);
+        break;
+    }
+    case 2u: {
+        uint32_t pos = (tick / 3u) % LED_COUNT;
+        uint32_t k;
+        uint8_t hr, hg, hb;
+        wheel((uint8_t)((tick * 4u) & 0xFFu), &hr, &hg, &hb);
+        fill(0u, 0u, 0u);
+        for (k = 0u; k < 4u; k++) {
+            uint32_t idx = (pos + LED_COUNT - k) % LED_COUNT;
+            uint32_t sc = (4u - k) * 25u;
+            set_px(idx, (uint8_t)((uint32_t)hr * sc / 100u),
+                       (uint8_t)((uint32_t)hg * sc / 100u),
+                       (uint8_t)((uint32_t)hb * sc / 100u));
+        }
+        break;
+    }
+    case 3u: {
+        static const uint8_t col[6][3] = {
+            {80, 0, 0}, {0, 80, 0}, {0, 0, 80},
+            {80, 80, 0}, {0, 80, 80}, {80, 0, 80}
+        };
+        uint32_t c = (tick / 40u) % 6u;
+        fill(col[c][0], col[c][1], col[c][2]);
+        break;
+    }
+    case 4u:
+        fill(0u, 0u, 0u);
+        break;
+    default:
+        fill(40u, 40u, 40u);
+        break;
+    }
+}
+
+static void show_pin(void)
+{
+    uart_puts("PIN ");
     if (g_cand[g_sel].pin == 0xFFu) {
         uart_puts("BROADCAST\r\n");
     } else {
@@ -269,20 +331,20 @@ static void show_sel(void)
     }
 }
 
-/* 切脚后点亮全白，方便肉眼确认 */
-static void preview(void)
+static void show_scr(void)
 {
-    fill(70u, 70u, 70u);
-    ws_send();
-    delay_ms(900u);
-    fill(0u, 0u, 0u);
-    ws_send();
-    delay_ms(150u);
+    uart_puts("MODE ");
+    uart_dec(g_scr);
+    uart_puts("\r\n");
+    if (g_scr == SCR_PIN) {
+        show_pin();
+        uart_puts("short=next pin, long(2s)=save\r\n");
+    }
 }
 
 int main(void)
 {
-    uint32_t tick = 0u, base = 0u, cnt = 0u, long_done = 0u, key_prev = 1u;
+    uint32_t tick = 0u, cnt = 0u, long_done = 0u, key_prev = 1u, hb = 0u;
 
     clock_init();
     dwt_init();
@@ -292,56 +354,45 @@ int main(void)
     apply_sel();
     delay_ms(30u);
 
-    uart_puts("\r\nWS2812 PIN SELECT\r\n");
-    show_sel();
-    if (g_sel == 0u) {
-        uart_puts("(no saved config: BROADCAST)\r\n");
-    } else {
-        uart_puts("(loaded from flash)\r\n");
-    }
-    uart_puts("short press = next pin, long press (2s) = save\r\n");
-    preview();
+    uart_puts("\r\nWS2812 SEL  KEY=PA0\r\n");
+    show_scr();
 
     for (;;) {
         uint32_t key = GPIOA_IDR & 1u;
 
         if (key == 0u) {
             if (cnt < 200u) { cnt++; }
-            if (cnt == 80u && !long_done) {          /* 2 s */
+            if (cnt == 80u && !long_done && g_scr == SCR_PIN) {
                 long_done = 1u;
-                if (flash_save_sel(g_sel)) {
-                    uart_puts("SAVED\r\n");
-                } else {
-                    uart_puts("SAVE FAILED\r\n");
-                }
+                uart_puts(flash_save_sel(g_sel) ? "SAVED\r\n" : "SAVE FAILED\r\n");
+                g_scr = 0u;
+                show_scr();
             }
         } else {
             if (key_prev == 0u && cnt >= 2u && cnt < 80u && !long_done) {
-                g_sel = (g_sel + 1u) % CAND_N;       /* 短按: 下一个候选 */
-                apply_sel();
-                show_sel();
-                preview();
+                if (g_scr == SCR_PIN) {
+                    g_sel = (g_sel + 1u) % CAND_N;
+                    apply_sel();
+                    show_pin();
+                    fill(70u, 70u, 70u);
+                    ws_send();
+                    delay_ms(300u);
+                } else {
+                    g_scr = (uint8_t)((g_scr + 1u) % SCR_NUM);
+                    if (g_scr == SCR_PIN) { apply_sel(); }
+                    show_scr();
+                }
             }
             cnt = 0u;
             long_done = 0u;
         }
         key_prev = key;
 
-        /* 正常显示: 彩虹流动 */
-        {
-            uint32_t i;
-            for (i = 0u; i < LED_COUNT; i++) {
-                uint8_t r, g, b;
-                wheel((uint8_t)((i * 4u + base) & 0xFFu), &r, &g, &b);
-                g_grb[i * 3u + 0u] = g;
-                g_grb[i * 3u + 1u] = r;
-                g_grb[i * 3u + 2u] = b;
-            }
-        }
+        render(tick);
         ws_send();
-        if ((tick % 40u) == 0u) { uart_puts("RUN\r\n"); }
+
+        if (++hb >= 40u) { hb = 0u; uart_puts("RUN\r\n"); }
         tick++;
-        base = (base + 4u) & 0xFFu;
         delay_ms(25u);
     }
 }

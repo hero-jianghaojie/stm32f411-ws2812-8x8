@@ -28,7 +28,7 @@ echo ==================================================
 echo   Images in out\
 echo ==================================================
 for %%L in (1 2 3) do (
-  if "%%L"=="1" echo   [ WS2812 matrix ]
+  if "%%L"=="1" echo   [ WS2812 matrix + modes ]
   if "%%L"=="2" echo   [ OLED 128x64 ]
   if "%%L"=="3" echo   [ diagnose / tools ]
   for /l %%i in (1,1,%N%) do (
@@ -105,7 +105,7 @@ if exist .last_pin (
   set /p LASTPIN=<.last_pin
   echo   Last pin: !LASTPIN!
 )
-echo   Note: only ws2812_sel reads this; other builds are fixed.
+echo   This value is stored in Flash (0x08060000) and read by ws2812_sel.
 set "SELP="
 set /p "SELP=Pin [0-25, Enter = last/0]: "
 if not defined SELP set "SELP=!LASTPIN!"
