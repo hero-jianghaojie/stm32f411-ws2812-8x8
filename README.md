@@ -269,6 +269,33 @@ GREEN
 ...
 ```
 
+
+### 壁纸播放（128×128 动画）
+
+`out/tft_wall.hex` 播放"大肥鱼"壁纸的 14 帧循环（128×128、RGB565、10 fps）。
+素材由 `tools/gen_tft_video.py` 从视频帧生成：
+
+```bash
+# 1) 抽帧（全分辨率，5 fps 取 30 帧，脚本再挑 14 帧）
+ffmpeg -ss 2 -t 6 -i wallpaper.mp4 -vf fps=5 assets/full/f_%03d.png
+# 2) 生成 RGB565 帧数据（居中裁成正方形、提亮暗部）
+python tools/gen_tft_video.py --frames 14
+# 3) 编译
+./build_ws2812.sh      # 产出 out/tft_wall.hex
+```
+
+预览：`out/tft_anim_preview.png`（14 帧拼版）。
+
+| 参数 | 值 |
+|---|---|
+| 帧数 / 帧率 | 14 帧 / 10 fps（每帧 100 ms） |
+| 每帧数据 | 128×128×2 B = 32 KB |
+| 占用 Flash | 约 450 KB（512 KB 中剩约 62 KB，最多可放 15 帧） |
+| 提亮处理 | R×1.55+18、G×1.55+22、B×1.35+20（暗色壁纸在小屏上过暗） |
+
+> 帧数受 Flash 限制：想要更流畅需减分辨率（如 96×96 → 每帧 18 KB，可放 25 帧）
+> 或改硬件 SPI + DMA 提高刷新率。
+
 ### 现象对照
 
 | 现象 | 原因 | 处理 |

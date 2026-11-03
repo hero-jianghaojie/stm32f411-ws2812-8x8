@@ -44,6 +44,9 @@ build_one tft_test.c       tft_144     -DTFT_CTRL=4
 build_one tft_test.c       tft_144o    -DTFT_CTRL=4 -DTFT_XOFF=0 -DTFT_YOFF=0
 build_one tft_test.c       tft_144i    -DTFT_CTRL=4 -DTFT_INVERT=1
 
+# 壁纸播放（需要先跑 tools/gen_tft_video.py 生成 src/anim_tft.h）
+build_one tft_wallpaper.c  tft_wall
+
 # 单脚版本（DIN 接 PA7 / PA6 / PA1 / PA0）
 
 # 工具类固件
