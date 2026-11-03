@@ -39,7 +39,7 @@ for %%L in (1 2 3 4) do (
   if "%%L"=="1" echo   [ WS2812 matrix + modes ]
   if "%%L"=="2" echo   [ OLED 128x64 ]
   if "%%L"=="3" echo   [ diagnose / tools ]
-  if "%%L"=="4" echo   [ Color TFT - SPI ]
+  if "%%L"=="4" echo   [ Color TFT - SPI, 1.44=first ]
   for /l %%i in (1,1,%N%) do (
     if "!CAT%%i!"=="%%L" (
       set "IDX=%%i"

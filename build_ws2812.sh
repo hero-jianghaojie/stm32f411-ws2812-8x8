@@ -39,6 +39,10 @@ build_one tft_test.c       tft_ili9341 -DTFT_CTRL=3
 # ST7735 面板偏移/颜色反相的备用版（1.8 寸蓝板常见 offset 2/1）
 build_one tft_test.c       tft_st7735o -DTFT_CTRL=1 -DTFT_XOFF=2 -DTFT_YOFF=1
 build_one tft_test.c       tft_st7735i -DTFT_CTRL=1 -DTFT_XOFF=2 -DTFT_YOFF=1 -DTFT_INVERT=1
+# 1.44 寸 128x128 版（ST7735，默认偏移 2/1）
+build_one tft_test.c       tft_144     -DTFT_CTRL=4
+build_one tft_test.c       tft_144o    -DTFT_CTRL=4 -DTFT_XOFF=0 -DTFT_YOFF=0
+build_one tft_test.c       tft_144i    -DTFT_CTRL=4 -DTFT_INVERT=1
 
 # 单脚版本（DIN 接 PA7 / PA6 / PA1 / PA0）
 

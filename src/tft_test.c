@@ -2,6 +2,7 @@
  *
  * 编译时用 -DTFT_CTRL=x 选择控制器：
  *   1 = ST7735   (128x160，常见 1.8 寸)
+ *   4 = ST7735   (128x128，常见 1.44 寸，默认偏移 2/1)
  *   2 = ST7789   (240x240，常见 1.14/1.3 寸)
  *   3 = ILI9341  (240x320，常见 2.4/2.8 寸)
  *
@@ -57,8 +58,18 @@
 #define TFT_H       320
 #define TFT_XOFF    0
 #define TFT_YOFF    0
+#elif TFT_CTRL == 4
+#define CTRL_NAME   "ST7735-128x128"
+#define TFT_W       128
+#define TFT_H       128
+#ifndef TFT_XOFF
+#define TFT_XOFF    2       /* 1.44 寸常见偏移 */
+#endif
+#ifndef TFT_YOFF
+#define TFT_YOFF    1
+#endif
 #else
-#error "TFT_CTRL must be 1(ST7735), 2(ST7789) or 3(ILI9341)"
+#error "TFT_CTRL must be 1(128x160), 2(ST7789), 3(ILI9341) or 4(128x128)"
 #endif
 
 /* ---------------- 引脚（默认 PB 组，避开 PA0 按键 / PA9 PA10 串口 / PB6 PB7 I2C） ---- */
@@ -209,7 +220,7 @@ static void tft_init(void)
     RST_H();
     delay_ms(120u);
 
-#if TFT_CTRL == 1        /* ST7735 */
+#if (TFT_CTRL == 1) || (TFT_CTRL == 4)   /* ST7735 系列 */
     {
         static const uint8_t frm[] = { 0x01, 0x2C, 0x2D };
         static const uint8_t frm3[] = { 0x01, 0x2C, 0x2D, 0x01, 0x2C, 0x2D };
