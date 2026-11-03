@@ -330,7 +330,15 @@ python tools/gen_tft_video.py --frames 14
 | 固件 | 作用 | 产物 |
 |---|---|---|
 | `aht21_test` | 只读温湿度，**串口**每秒打印 `T=25.31C H=48.72%`，便于先确认模块可用 | `out/aht21_test.hex` |
-| `aht21_oled` | 温湿度 → **OLED 显示**（TEMP/HUM 两行 + 湿度横条 + 冷热提示） | `out/aht21_oled.hex` |
+| `aht21_oled` | 温湿度 → **128×64 OLED**（TEMP/HUM 两行 + 湿度横条 + 冷热提示） | `out/aht21_oled.hex` |
+| `aht21_tft` | 温湿度 → **1.44 寸彩色 TFT**（3 倍大字、温度按冷热变色、湿度条） | `out/aht21_tft.hex` |
+| `aht21_tft_o` | 同上，但面板偏移为 0 | `out/aht21_tft_o.hex` |
+
+`aht21_tft` 的布局：顶部标题条 `ENV MONITOR`，中间两行 3 倍大字（温度/湿度），
+下方湿度进度条，底部 `HOT / COMFORT / COLD`。
+
+实现上用 **32 KB 帧缓冲**（`uint16_t lcd[128*128]`）在 RAM 里画完整屏，再一次性推给屏幕；
+若逐像素调 `tft_rect`，每像素一条 SPI 命令，会慢到无法接受。
 
 烧 `aht21_test` 先看串口，通了再换 `aht21_oled`。失败时串口会打印：
 

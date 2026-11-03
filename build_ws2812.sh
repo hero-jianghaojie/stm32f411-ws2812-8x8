@@ -53,6 +53,8 @@ build_one tft_wallpaper.c  tft_wall
 build_one btn_scan.c       btn_scan
 build_one aht21_test.c     aht21_test
 build_one aht21_oled.c     aht21_oled
+build_one aht21_tft.c      aht21_tft
+build_one aht21_tft.c      aht21_tft_o  -DTFT_XOFF=0 -DTFT_YOFF=0
 build_one ws_pin_scan.c    ws_pin_scan
 
 echo "-- done --"
