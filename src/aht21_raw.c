@@ -96,6 +96,20 @@ static void uart_hex2(uint8_t v)
     uart_putc(h[v & 0xFu]);
 }
 
+static uint8_t aht_crc8(const uint8_t *d, uint32_t n)
+{
+    uint8_t crc = 0xFFu;
+    uint32_t i;
+    int k;
+    for (i = 0u; i < n; i++) {
+        crc ^= d[i];
+        for (k = 0; k < 8; k++) {
+            crc = (crc & 0x80u) ? (uint8_t)((crc << 1) ^ 0x31u) : (uint8_t)(crc << 1);
+        }
+    }
+    return crc;
+}
+
 static void dump(const char *tag, const uint8_t *b, uint32_t n)
 {
     uint32_t i;
@@ -103,6 +117,12 @@ static void dump(const char *tag, const uint8_t *b, uint32_t n)
     for (i = 0u; i < n; i++) {
         uart_putc(' ');
         uart_hex2(b[i]);
+    }
+    if (n >= 7u) {
+        uint8_t c = aht_crc8(b, 6u);
+        uart_puts("  crc=");
+        uart_hex2(c);
+        uart_puts((b[6] == c) ? " OK" : " BAD");
     }
     uart_puts("\r\n");
 }

@@ -296,6 +296,21 @@ static uint32_t aht_read_status(uint8_t *st)
 {
     return i2c_recv(AHT_ADDR, st, 1u);
 }
+/* AHT20/21 的 CRC8: 多项式 0x31, 初值 0xFF, 对前 6 字节计算, 与 b[6] 比较 */
+static uint8_t aht_crc8(const uint8_t *d, uint32_t n)
+{
+    uint8_t crc = 0xFFu;
+    uint32_t i;
+    int k;
+    for (i = 0u; i < n; i++) {
+        crc ^= d[i];
+        for (k = 0; k < 8; k++) {
+            crc = (crc & 0x80u) ? (uint8_t)((crc << 1) ^ 0x31u) : (uint8_t)(crc << 1);
+        }
+    }
+    return crc;
+}
+
 
 static uint32_t aht_begin(void)
 {
@@ -329,22 +344,20 @@ static uint32_t aht_measure(aht_val_t *out)
     if (!aht_write3(trig)) { return 1u; }
     delay_ms(80u);
 
-    /* 关键：AHT20/21 的测量结果是一整次 7 字节读事务：
-     *   b[0] = 状态（bit7=1 表示仍在忙），b[1..6] = 5 字节数据 + CRC
-     * 不要先单独读 1 字节状态再来读 7 字节 —— 那样会吞掉首字节，之后全部错位一格，
-     * 表现为湿度像样、温度恒为 0。
-     */
-    for (tries = 0u; tries < 12u; tries++) {
+    /* 一次读 7 字节，用 CRC 判真伪；不通过就重读整组。
+     * 若只读一次而不校验，会出现"b1/b2 读到 0xFF -> 湿度 99.99%"这种假数据：
+     * 温度字节碰巧正确、湿度却满了，很容易被误当成环境饱和。 */
+    for (tries = 0u; tries < 6u; tries++) {
         if (!i2c_recv(AHT_ADDR, b, 7u)) { return 1u; }
-        if ((b[0] & 0x80u) == 0u) { break; }
-        delay_ms(10u);
+        if ((b[0] & 0x80u) == 0u && aht_crc8(b, 6u) == b[6]) { break; }
+        delay_ms(15u);
     }
     if (b[0] & 0x80u) { return 2u; }
+    if (aht_crc8(b, 6u) != b[6]) { return 3u; }
 
     raw_h = ((uint32_t)b[1] << 12) | ((uint32_t)b[2] << 4) | ((uint32_t)b[3] >> 4);
     raw_t = (((uint32_t)b[3] & 0x0Fu) << 16) | ((uint32_t)b[4] << 8) | (uint32_t)b[5];
 
-    /* 定点换算（先右移 4 位再乘，避免 32 位溢出） */
     out->h_x100 = (((uint32_t)raw_h >> 4) * 10000u) >> 16;
     {
         int32_t t = (int32_t)((((uint32_t)raw_t >> 4) * 20000u) >> 16) - 5000;
