@@ -32,6 +32,11 @@ build_one() {
 # 五模式固件（全引脚广播，PA0 按键）——默认烧这个
 build_one ws2812_sel.c     ws2812_sel
 
+# 彩色 SPI TFT（-DTFT_CTRL: 1=ST7735, 2=ST7789, 3=ILI9341）
+build_one tft_test.c       tft_st7735  -DTFT_CTRL=1
+build_one tft_test.c       tft_st7789  -DTFT_CTRL=2
+build_one tft_test.c       tft_ili9341 -DTFT_CTRL=3
+
 # 单脚版本（DIN 接 PA7 / PA6 / PA1 / PA0）
 
 # 工具类固件
