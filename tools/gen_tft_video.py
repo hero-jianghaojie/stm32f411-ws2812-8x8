@@ -75,7 +75,7 @@ def main():
 
     # 预览: 4x4 拼版
     cols, rows = 4, (n + 3) // 4
-    scale_p = 2
+    scale_p = 1        /* 预览图保持 1:1，避免仓库里出现 1 MB 大图 */
     pw = W * scale_p
     sheet = Image.new("RGB", (cols * (pw + 6) + 6, rows * (pw + 6) + 6), (16, 16, 16))
     for i, im in enumerate(imgs):

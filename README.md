@@ -284,7 +284,7 @@ python tools/gen_tft_video.py --frames 14
 ./build_ws2812.sh      # 产出 out/tft_wall.hex
 ```
 
-预览：`out/tft_anim_preview.png`（14 帧拼版）。
+预览：![大肥鱼壁纸 14 帧](out/tft_anim_preview.png)
 
 | 参数 | 值 |
 |---|---|
