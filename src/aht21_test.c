@@ -239,30 +239,28 @@ static uint32_t aht_measure(aht_val_t *out)
     uint32_t tries;
 
     if (!aht_write(trig, 3u)) { return 1u; }
+    delay_ms(80u);
 
-    /* 等测量完成（状态 bit7 == 0），最多 100 ms */
+    /* 关键：AHT20/21 的测量结果是一整次 7 字节读事务：
+     *   b[0] = 状态（bit7=1 表示仍在忙），b[1..6] = 5 字节数据 + CRC
+     * 不要先单独读 1 字节状态再来读 7 字节 —— 那样会吞掉首字节，之后全部错位一格，
+     * 表现为湿度像样、温度恒为 0。
+     */
     for (tries = 0u; tries < 12u; tries++) {
-        delay_ms(10u);
-        if (!aht_read(b, 1u)) { return 1u; }
+        if (!aht_read(b, 7u)) { return 1u; }
         if ((b[0] & 0x80u) == 0u) { break; }
+        delay_ms(10u);
     }
-
-    if (!aht_read(b, 7u)) { return 1u; }
+    if (b[0] & 0x80u) { return 2u; }
 
     raw_h = ((uint32_t)b[1] << 12) | ((uint32_t)b[2] << 4) | ((uint32_t)b[3] >> 4);
     raw_t = (((uint32_t)b[3] & 0x0Fu) << 16) | ((uint32_t)b[4] << 8) | (uint32_t)b[5];
 
-    /* RH% = raw_h / 2^20 * 100  →  放大 100 倍 = raw_h * 10000 / 2^20 */
-    /* 注意：raw_h 最大 2^20，raw_h*10000 会超过 32 位（约 1.05e10），
-       所以先右移 4 位再乘，等价于 (raw*10000)>>20，误差 < 0.01%RH */
+    /* 定点换算（先右移 4 位再乘，避免 32 位溢出） */
     out->h_x100 = (((uint32_t)raw_h >> 4) * 10000u) >> 16;
-
-    /* T = raw_t / 2^20 * 200 - 50  →  放大 100 倍 = raw_t * 20000/2^20 - 5000 */
     {
-{
         int32_t t = (int32_t)((((uint32_t)raw_t >> 4) * 20000u) >> 16) - 5000;
         out->t_x100 = (t < 0) ? 0u : (uint32_t)t;
-    }
     }
     return 0u;
 }
