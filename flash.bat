@@ -20,7 +20,9 @@ for %%f in (out\*.hex) do (
   set "F!N!=%%f"
   set "NM!N!=%%~nf"
   set "NM=%%~nf"
-  if /i "!NM:~0,3!"=="tft" (
+  if /i "!NM:~0,4!"=="aht2" (
+    set "CAT!N!=5"
+  ) else if /i "!NM:~0,3!"=="tft" (
     set "CAT!N!=4"
   ) else if /i "!NM:~0,7!"=="ws2812_" (
     set "CAT!N!=1"
@@ -35,11 +37,12 @@ echo.
 echo ==================================================
 echo   Images in out\
 echo ==================================================
-for %%L in (1 2 3 4) do (
+for %%L in (1 2 3 4 5) do (
   if "%%L"=="1" echo   [ WS2812 matrix + modes ]
   if "%%L"=="2" echo   [ OLED 128x64 ]
   if "%%L"=="3" echo   [ diagnose / tools ]
   if "%%L"=="4" echo   [ Color TFT - SPI, 1.44=first ]
+  if "%%L"=="5" echo   [ AHT21 sensor ]
   for /l %%i in (1,1,%N%) do (
     if "!CAT%%i!"=="%%L" (
       set "IDX=%%i"
