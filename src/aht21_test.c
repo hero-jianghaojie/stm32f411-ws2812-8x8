@@ -313,7 +313,13 @@ int main(void)
             uart_fixed2(v.t_x100);
             uart_puts("C H=");
             uart_fixed2(v.h_x100);
-            uart_puts("%\r\n");
+            if (v.h_x100 >= 10000u) {
+                /* CRC 有效但湿度饱和：多为湿敏元件损坏或受污染 */
+                uart_puts("%  <-- HUM SATURATED");
+            } else {
+                uart_puts("%");
+            }
+            uart_puts("\r\n");
         }
         if (++hb >= 20u) { hb = 0u; }
         delay_ms(900u);
